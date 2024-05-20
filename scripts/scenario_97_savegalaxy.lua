@@ -1,16 +1,40 @@
+---@diagnostic disable: discard-returns
 -- Name: Superweapon
 -- Description: Save the galaxy from a Kraylor superweapon!
 -- Type: Development
+-- Author: Bored Developer
+-- Setting[Difficulty]: set the difficulty level
+-- Difficulty[easy|Default]: easy level
+-- Difficulty[medium]: medium difficulty
+-- Difficulty[hard]: hard difficulty
+-- Setting[Orbits]: Configures orbit speeds of planets and stations. Further refinement available on GM screen
+-- Orbits[Slow|Default]: Slow orbit speeds
+-- Orbits[Medium]: Medium speeds
+-- Orbits[Fast]: Fast speeds
+
+freighter1 = nil
 
 require("utils.lua")
-
+require("tasks.lua")
+-- comment syntax:
+-- setup section: [-] setup subsection: [--] mission stage function: [~] Utility function section: [~-]
+-- will update later: [~~]
+-- setScenario("scenario_97_savegalaxy.lua")
 -- 1: start, 2: post briefing/recover intelligence, 3: intelligence recovered, get materials, 4: materials gathered, destroy base
-missionStage = 1.0
-stageTimes = {}
-stageTimes["2.23"] = 0
+missionStage = "1.0"
+orders = ""
+
+kraylorTransports = {}
+
+
+-- [~-] stage functions
 
 function start_2_2()
-    freighter1 = CpuShip():setFaction("Independent"):setTemplate("Jump Carrier"):setTypeName("Mk1 Equipment Carrier"):setJumpDrive(false):setWarpDrive(true):setCallSign("D077"):setPosition(52455, -39804):orderRoaming()
+    -- [~] start stage 2.2
+    string.format("")
+    orders = "dock to D077"
+    
+    freighter1 = CpuShip():setFaction("Independent"):setTemplate("Jump Carrier"):setTypeName("Mk1 Equipment Carrier"):setJumpDrive(false):setWarpDrive(true):setCallSign("D077"):setPosition(52455, -39804):orderRoaming():setRotationMaxSpeed(50)
     freighter1:orderIdle():setCommsFunction(function(comms_source, comms_target)
         if comms_source:isDocked(comms_target) then
             setCommsMessage("Welcome to our ship!")
@@ -18,16 +42,49 @@ function start_2_2()
             function (_comms_source, _comms_target)
                 setCommsMessage("Alright, we have taken the person onto our ship. We have some business with the Kraylor, but your apprentice can come along.")
                 freighter1:orderDock(supply3)
-                missionStage = 2.22
+                missionStage = "2.21"
+                orders = "wait for D077"
+                addTask(function ()
+                    missionStage = "2.23"
+                    addTimeTask(start_2_24, getScenarioTime()+10)
+                end, function (_time)
+                    return freighter1:isDocked(supply3)
+                end)
             end)
-            
+
         else
             setCommsMessage("Dock if you need anything.")
         end
     end)
 end
 
-function start_2_23()
+function start_2_24()
+    -- [~]
+    if not freighter1 then
+        freighter1 = CpuShip():setFaction("Independent"):setTemplate("Jump Carrier"):setTypeName("Mk1 Equipment Carrier"):setJumpDrive(false):setWarpDrive(true):setCallSign("D077"):setPosition(52455, -39804):orderRoaming():setRotationMaxSpeed(50)
+        freighter1:orderIdle():setCommsFunction(function(comms_source, comms_target)
+            if comms_source:isDocked(comms_target) then
+                setCommsMessage("Welcome to our ship!")
+                addCommsReply("We have someone who would like to go on your ship as an apprentice.",
+                function (_comms_source, _comms_target)
+                    setCommsMessage("Alright, we have taken the person onto our ship. We have some business with the Kraylor, but your apprentice can come along.")
+                    freighter1:orderDock(supply3)
+                    missionStage = "2.21"
+                    orders = "wait for D077"
+                    addTask(function ()
+                        missionStage = "2.23"
+                        addTimeTask(start_2_24, getScenarioTime()+10)
+                    end, function (_time)
+                        return freighter1:isDocked(supply3)
+                    end)
+                end)
+    
+            else
+                setCommsMessage("Dock if you need anything.")
+            end
+        end)
+    end
+    string.format("")
     freighter1:orderFlyTowards(61943, -19026)
     freighter1:setCommsFunction(function(comms_source, comms_target)
         if comms_source:isDocked(comms_target) then
@@ -35,9 +92,24 @@ function start_2_23()
             addCommsReply("Pick up apprentice",
             function (_comms_source, _comms_target)
                 setCommsMessage("person has been dropped off on your ship")
-                freighter1:orderDock(supply3)
-                missionStage = 2.24
-                deltaBase:sendCommsMessage(player, string.format("Incoming encrypted transmission: Due to security reasons, you will need to go to the secret base area 52. It is about %d u away in direction %d. You will have to navigate a minefield, follow the marker buoys.", math.floor(distance(player, area52)), math.floor(angleHeading(player, area52))))
+             --   freighter1:orderDock(supply3)
+                missionStage = "2.25"
+                addTask(function ()
+                deltaBase:sendCommsMessage(
+                    player,
+                    string.format(
+                        "Incoming encrypted transmission: Due to security reasons, you will need to go to the secret base area 52. It is about %d u away in direction %d. You will have to navigate a minefield, follow the marker buoys.",
+                        math.floor(distance(player, area52)),
+                        math.floor(angleHeading(player, area52))
+                    )
+                )
+                end,
+                function (_)
+                    return not player:isDocked(freighter1)
+                end
+
+            )
+                orders = "Dock to area 52"
             end)
             
         else
@@ -46,16 +118,89 @@ function start_2_23()
     end)
 end
 
+function start_3()
+    -- [~]
+    string.format("")
+    missionStage = "3.0"
+    area52:sendCommsMessage(player, "We have processed the information from the spy. Things are not looking good. The Kraylor have made significant progress on their superweapon. However, we do have hope. The spy has discovered that the Kraylor have to procure some supplies in order to finish building the superweapon,and some Kraylor transports are going to the superweapon. By destroying these transports, you can delay the Kraylor enough that we can find a way to destroy the superweapon. You can exit the maze through the wormhole.")
+    orders = "destroy the Kraylor transports"
+    WormHole():setPosition(-8992, -107658):setTargetPosition(-3836, -75378)
+    for _ = 1, 3, 1 do
+        local transport = CpuShip():setFaction("Kraylor"):setTemplate("Equipment Freighter 1"):setPosition(supply3:getPosition()):orderDock(galactus)
+        table.insert(kraylorTransports, transport)
+    end
+end
+
+function start_3_1()
+    -- [~]
+    string.format("")
+    if tonumber(missionStage) >= tonumber("3.1") then
+        return
+    end
+    missionStage = "3.1"
+    deltaBase:sendCommsMessage(player, "You have succesfully destroyed the transports and delayed the Kraylor. Dock to Delta Base to reload and recover, then dock to jc20.")
+    jc20 = CpuShip():setFaction("Human Navy"):setTemplate("Jump Carrier"):setCallSign("JC20"):setPosition(30410, -58847)
+    jc20:setCommsFunction(function (comms_source, comms_target)
+        if missionStage == "3.1" and comms_source:isDocked(jc20) then
+            setCommsMessage("Are you ready?")
+            addCommsReply("Yep", function (comms_source_, comms_target_)
+                setCommsMessage("hold on tight!")
+                missionStage = "3.12"
+                jc20:orderFlyTowardsBlind(-359626, 382391)
+                addTask(function ()
+                    missionStage = "3.13"
+                    jc20:sendCommsMessage(player, "Dock to the mining colony, pick up supplies, and then dock to me for a ride home.")
+                    colony1:setCommsFunction(function (comms_source, comms_target)
+                        setCommsMessage("Wow, you came pretty far. What can I do for you?")
+                        addCommsReply("I need some supplies to stop the Kraylor superweapon.", function (comms_source_, comms_target_)
+                            setCommsMessage("Alright. Here it is.")
+                            missionStage = 3.14
+                        end)
+                    end)
+                    end,
+                    function (_)
+                    return distance(jc20, -359626, 382391) < 100
+                end)
+            end)
+        elseif missionStage == "3.14" and comms_source:isDocked(jc20) then
+            setCommsMessage("Are you ready?")
+            addCommsReply("Yep", function (comms_source_, comms_target_)
+                setCommsMessage("hold on tight!")
+                missionStage = "3.1"
+                jc20:orderFlyTowardsBlind(30410, -58847)
+        end)
+        end
+    end)
+
+end
+
+-- [~-] comms functions
+
 function deltaBaseInformation(comms_source, comms_target)
     setCommsMessage("What information do you need?")
-    if missionStage == 1.0 then
+    if missionStage == "1.0" then
         addCommsReply("what is the new intelligence?", function (_comms_source, _comms_target)
             setCommsMessage("Recent intelligence data has shown that the Kraylor are developing a new superweapon. However, we do not have very much information. You need to take a spy and dock to freighter D077 and drop it off, and pretend that the person is an apprentice who wants to visit. After the freighter has docked and undocked from the Kraylor base supply 3, Dock with it again and bring the spy back.")
             addCommsReply(_("<- Back"), deltaBaseInformation)
-            missionStage = 2.2
+            missionStage = "2.2"
             start_2_2()
         end)
+    elseif missionStage == "3.1" then
+        addCommsReply("what is the new intelligence?", function (_comms_source, _comms_target)
+            setCommsMessage("Recent intelligence data has shown that the Kraylor are developing a new superweapon. However, we do not have very much information. You need to take a spy and dock to freighter D077 and drop it off, and pretend that the person is an apprentice who wants to visit. After the freighter has docked and undocked from the Kraylor base supply 3, Dock with it again and bring the spy back.")
+            addCommsReply(_("<- Back"), deltaBaseInformation)
+            missionStage = "2.2"
+            
+        end)
+    else
+        addCommsReply("What are my current orders?", function (_comms_source, _comms_target)
+            setCommsMessage(orders)
+            addCommsReply(_("<- Back"), deltaBaseInformation)
+
+        end)
     end
+
+    
     addCommsReply(_("<- Back"), deltaBaseComms)
 end
 
@@ -64,9 +209,9 @@ function deltaBaseComms(comms_source, comms_target)
         setCommsMessage("What do you need?")
         addCommsReply("Mission information needed.", deltaBaseInformation)
         addCommsReply("Please restock missiles.", function (comms_source_, comms_target_)
-            for i = 1, 5, 1 do
-                n={"Homing", "Nuke", "Mine", "EMP", "HVLI"}
-                comms_source_:setWeaponStorage(n[i-1], comms_source_:getWeaponStorageMax(n[i]))
+            string.format("")
+            for _, value in ipairs({"Homing", "Nuke", "Mine", "EMP", "HVLI"}) do
+                comms_source_:setWeaponStorage(value, comms_source_:getWeaponStorageMax(value))
             end
             setCommsMessage("Missiles restocked.")
             addCommsReply(_("<- Back"), deltaBaseComms)
@@ -76,21 +221,80 @@ function deltaBaseComms(comms_source, comms_target)
     end
 end
 
+
+function area52CommsFunction(comms_source, comms_target) 
+    if missionStage == "2.25" and comms_source:isDocked(comms_target) then
+        setCommsMessage("Welcome to the top secret base. What do you need?")
+        addCommsReply("We were sent here to drop off a spy.", function (comms_source_, comms_target_)
+            setCommsMessage("Thank you. We will process the information and contact you shortly.")
+            addCommsReply(_("<- Back"), area52CommsFunction)
+            missionStage = "2.26"
+            addTimeTask(start_3, getScenarioTime() + random(30, 60)) -- [~~]
+        end)
+    else
+        setCommsMessage("Welcome to the top secret base. What do you need?")
+            addCommsReply("What are my current orders?", function (comms_source_, comms_target_)
+                setCommsMessage(orders)
+                addCommsReply(_("<- Back"), area52CommsFunction)
+            end)
+    end
+end
+
+-- [~-] other utilities
+
+stageFunctions = {}
+stageFunctions["2.2"] = start_2_2
+stageFunctions["2.24"] = start_2_24
+stageFunctions["3.0"] = start_3
+stageFunctions["3.1"] = start_3_1
+
+function gmFunctionsMain()
+    string.format("")
+    clearGMFunctions()
+    addGMFunction("Check Mission Status", function()
+        local tmp = string.format([[stage: %s]], missionStage)
+        addGMMessage(tmp)
+            end)
+    addGMFunction("skip to stage", function ()
+        string.format("")
+        clearGMFunctions()
+        addGMFunction("<- Back", gmFunctionsMain)
+        for key, value in pairs(stageFunctions) do
+            addGMFunction(key, function ()
+                string.format("")
+                value()
+                gmFunctionsMain()
+            end)
+        end
+    end)
+end
+
+settings = {
+    orbitspeed=100,
+}
+function setVariations()
+    orbitSpeedSettings = {Slow=100, Medium=80, Fast=60}
+    if getScenarioSetting("Orbits") then
+        settings["orbitspeed"] = orbitSpeedSettings[getScenarioSetting("Orbits")]
+    end
+end
+
 function init()
     -- human navy stuff [-]
+    gmFunctionsMain()
     deltaBase = SpaceStation():setTemplate("Huge Station"):setFaction("Human Navy"):setCallSign("Delta Base"):setPosition(41922, -75926)
     deltaBase:setCommsFunction(deltaBaseComms)
     player = PlayerSpaceship():setTemplate("Atlantis"):setPosition(-323, 16082):setWarpDrive(true):setMaxEnergy(2000)
-    -- making ship fast during the development period
+    -- making ship fast during the development period [~~]
     player:setImpulseMaxSpeed(250, 250):setRotationMaxSpeed(40):setAcceleration(50, 50):setAutoCoolant(true):commandSetAutoRepair(true):setRepairCrewCount(10)
 
-    area52 = SpaceStation():setTemplate("Medium Station"):setFaction("Human Navy"):setCallSign("Area 52"):setPosition(-6603, -109989)
-
+    area52 = SpaceStation():setTemplate("Medium Station"):setFaction("Independent"):setCallSign("Area 52"):setPosition(-6603, -109989)
+    area52:setCommsFunction(area52CommsFunction)
 
     -- natural stuff [-]
     star=Planet():setPosition(0, 0):setPlanetAtmosphereTexture("Atmosphere.png"):setPlanetAtmosphereColor(200, 0, 0):setCallSign("Rigel")
     planet1 = Planet():setPosition(0, 30000):setPlanetAtmosphereColor(200, 4, 4):setPlanetAtmosphereTexture("Atmosphere.png"):setPlanetSurfaceTexture("planet-3.png"):setPlanetCloudTexture("clouds-3.png"):setOrbit(
-        star, 10):setCallSign("Rigel A")
+        star, settings["orbitspeed"]/10):setCallSign("Rigel A")
 
     -- Galactus nebula field [--]
     Nebula():setPosition(100488, -29667)
@@ -370,9 +574,12 @@ function init()
     Artifact():setPosition(8326, -104152):setModel("artifact1")
 
     -- mining base [--]
-    Balthas1=Planet():setPosition(-502771, -365723):setPlanetRadius(5000):setPlanetCloudRadius(5200.00):setCallSign("Balthas 1")
+    Balthas1=Planet():setPosition(-373111, 391249):setPlanetRadius(5000):setPlanetCloudRadius(5200.00):setCallSign("Balthas 1")
     colony1 = SpaceStation():setTemplate("Small Station"):setFaction("Human Navy"):setCallSign("Balthas 1 mining colony")
-    setCirclePos(colony1, -502771, -365723, 0, 10000)
+    setCirclePos(colony1, -373111, 391249, 0, 10000)
+    colony1:setCommsFunction(function (comms_source, comms_target)
+        setCommsMessage("how did you get here?")
+    end)
 
 
 
@@ -382,20 +589,30 @@ function init()
 
 
     -- begin mission [-]
-    deltaBase:sendCommsMessage(getPlayerShip(-1), "ATTENTION ALL SHIPS STOP NEW GALACTIC THREAT DISCOVERED STOP DOCK TO DELTA BASE IN B7 AT ONCE STOP")
+    deltaBase:sendCommsMessage(player, "ATTENTION ALL SHIPS STOP NEW GALACTIC THREAT DISCOVERED STOP DOCK TO DELTA BASE IN B7 AT ONCE STOP")
+
 end
 
 function update()
-    delta = getScenarioTime()
-    setCirclePos(colony1, -502771, -365723, math.sin(delta/100)*360, 10000)
-
-    if missionStage == 2.2 then
-        if freighter1:isDocked(supply3) then
-            missionStage = 2.23
-            stageTimes["2.23"] = delta
+    time = getScenarioTime()
+    stepTimeTasks(time)
+    stepTasks(time)
+    setCirclePos(colony1, -373111, 391249, math.sin(time/settings["orbitspeed"])*360, 10000)
+    if missionStage == "3.0" then
+        local count_of_docked = 0
+        for _,ship in ipairs(kraylorTransports) do
+          if ship:isValid() then
+            if ship:isDocked(galactus) then
+              count_of_docked = count_of_docked + 1
+            end
+          else
+            start_3_1()
+            --this is where you add code for the next stage
+          end
         end
-        if stageTimes["2.23"] + 10 > delta then
-            start_2_23()
+        if count_of_docked == 3 then
+          globalMessage("The Kraylor completed the superweapon")
+          victory("Kraylor")
         end
-    end
+      end
 end
