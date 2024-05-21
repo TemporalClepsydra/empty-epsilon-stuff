@@ -126,6 +126,7 @@ function start_3()
     orders = "destroy the Kraylor transports"
     WormHole():setPosition(-8992, -107658):setTargetPosition(-3836, -75378)
     for _ = 1, 3, 1 do
+        
         local transport = CpuShip():setFaction("Kraylor"):setTemplate("Equipment Freighter 1"):setPosition(supply3:getPosition()):orderDock(galactus)
         table.insert(kraylorTransports, transport)
     end
